@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/falapet}
+    username: ${DB_USERNAME:falapet}
+    password: ${DB_PASSWORD:falapet_local}
+
+logging:
+  structured:
+    format:
+      console:

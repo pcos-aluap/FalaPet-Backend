@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-falapet}
+      POSTGRES_USER: ${POSTGRES_USER:-falapet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-falapet_local}
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
+      TZ: UTC
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - falapet-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-falapet}
+      DB_USERNAME: ${POSTGRES_USER:-falapet}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-falapet_local}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  falapet-postgres-data:
