@@ -1,14 +1,14 @@
 # FalaPet Backend
 
-Fundação executável do backend FalaPet (Épico 0), construída como monólito modular com Java 21, Spring Boot, PostgreSQL, Flyway e Spring Modulith. A API de domínio futura será versionada sob `/api/v1`; este épico não implementa endpoints de domínio nem autenticação contratual.
+Fundação executável do backend FalaPet, em monólito modular, com Java 21, Spring Boot, PostgreSQL, Flyway e Spring Modulith. O Épico 1 estabelece o contrato HTTP transversal em `/api/v1`; não implementa funcionalidades de domínio nem autenticação real.
 
 ## Pré-requisitos
 
 - JDK 21 (`java -version`)
 - Docker Desktop ou Docker Engine com Compose
-- Portas locais 5432 (PostgreSQL) e 8080 (aplicação), ou valores alternativos no `.env`
+- Portas 5432 (PostgreSQL) e 8080 (aplicação), ou alternativas configuradas no `.env`
 
-Não é necessário instalar Maven: o Maven Wrapper 3.9.16 está versionado.
+O Maven Wrapper 3.9.16 está versionado, portanto não é preciso instalar Maven.
 
 ## Testes e build
 
@@ -24,11 +24,11 @@ Shell Unix:
 ./mvnw clean verify
 ```
 
-Os testes de integração iniciam PostgreSQL real com Testcontainers; não exigem PostgreSQL instalado, mas requerem Docker disponível. H2 não é dependência do projeto.
+Os testes de integração criam um PostgreSQL 17.6 vazio com Testcontainers, executam todas as migrations e validam persistência e concorrência reais. Docker deve estar disponível; PostgreSQL local não é necessário. H2 não é dependência do projeto.
 
-## PostgreSQL local
+## Ambiente local
 
-Opcionalmente copie `.env.example` para `.env` e ajuste apenas valores locais. `.env` é ignorado pelo Git.
+Copie `.env.example` para `.env` e ajuste somente valores locais. `.env` é ignorado pelo Git.
 
 ```powershell
 Copy-Item .env.example .env
@@ -42,22 +42,11 @@ docker compose up -d postgres
 docker compose ps
 ```
 
-Para encerrar sem apagar dados:
-
-```bash
-docker compose down
-```
-
-Para recriar **somente o banco local**, removendo seu volume e todos os dados locais:
-
-```bash
-docker compose down -v
-docker compose up -d postgres
-```
+Para encerrar preservando dados, use `docker compose down`. Para recriar somente o ambiente local e apagar o volume local do PostgreSQL, use `docker compose down -v` e depois `docker compose up -d postgres`.
 
 ## Executar a aplicação
 
-Com o PostgreSQL local ativo, use o perfil de desenvolvimento:
+Com o PostgreSQL local ativo:
 
 ```powershell
 $env:SPRING_PROFILES_ACTIVE='dev'
@@ -68,21 +57,23 @@ $env:SPRING_PROFILES_ACTIVE='dev'
 SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 ```
 
-Verifique o único endpoint operacional público:
+Verificações disponíveis:
 
 ```powershell
-Invoke-RestMethod http://localhost:8080/actuator/health
+Invoke-WebRequest http://localhost:8080/actuator/health
+Invoke-WebRequest http://localhost:8080/api/v1/auth/capabilities
 ```
 
 ```bash
 curl -i http://localhost:8080/actuator/health
+curl -i http://localhost:8080/api/v1/auth/capabilities
 ```
 
-O health check responde com `X-Request-Id`. Um identificador válido enviado nesse header é propagado; valor ausente, inválido ou maior que 128 caracteres é substituído por UUID. O valor fica no MDC durante a requisição e é removido ao final.
+O único endpoint Actuator exposto é `GET /actuator/health`. A única rota pública em `/api/v1` é `GET /api/v1/auth/capabilities`, exigida pelo contrato; neste épico ela anuncia `passwordLogin`, `googleLogin` e `passwordRecovery` como `false`. Nenhuma capacidade reservada é anunciada.
 
 ## Container da aplicação
 
-O Dockerfile empacota o JAR previamente verificado, evitando repetir ou ocultar testes durante o build da imagem:
+O Dockerfile empacota o JAR previamente verificado:
 
 ```powershell
 .\mvnw.cmd clean verify
@@ -94,7 +85,7 @@ docker compose --profile app up --build -d
 docker compose --profile app up --build -d
 ```
 
-Depois, consulte `http://localhost:8080/actuator/health` e encerre com `docker compose --profile app down`.
+Consulte os endpoints acima e encerre com `docker compose --profile app down`.
 
 ## Configuração
 
@@ -104,25 +95,66 @@ Depois, consulte `http://localhost:8080/actuator/health` e encerre com `docker c
 | `DB_URL` | Em produção | URL JDBC PostgreSQL |
 | `DB_USERNAME` | Em produção | Usuário PostgreSQL |
 | `DB_PASSWORD` | Em produção | Senha PostgreSQL |
+| `CURSOR_SIGNING_KEY` | Em produção | Segredo com ao menos 32 bytes para assinar cursores opacos |
+| `MAX_JSON_PAYLOAD_BYTES` | Não | Limite técnico JSON; padrão 1 MiB |
 | `DB_MAX_POOL_SIZE` | Não | Pool de produção; padrão 10 |
 | `LOG_LEVEL` | Não | Nível raiz de produção; padrão `INFO` |
 
-O perfil `dev` possui apenas defaults locais coerentes com o Compose. Produção não contém credenciais padrão. Configurações futuras sensíveis devem seguir o mesmo padrão de variáveis de ambiente ou secret manager do ambiente, quando este for decidido.
+Os defaults de banco e assinatura presentes no perfil `dev` são exclusivamente locais. Produção exige variáveis externas e não contém credenciais padrão.
 
-Instantes são serializados em UTC, o JDBC usa UTC, o schema é validado pelo Hibernate (`ddl-auto=validate`) e criado exclusivamente pelo Flyway. Shutdown é gracioso. Em produção não há SQL verboso, detalhes sensíveis do Actuator ou stack traces em respostas.
+## Contrato HTTP transversal
 
-## Estrutura modular
+- Base da API: `/api/v1`.
+- JSON: `application/json; charset=utf-8`.
+- IDs de domínio: UUID textual.
+- Instantes: RFC 3339 em UTC, por exemplo `2026-09-14T18:00:00Z`.
+- Sucesso com corpo: `{ "data": ... }`.
+- Erro: `{ "error": { "code", "message", "retryable", "fieldErrors?", "details?" } }`.
+- Rotas inexistentes retornam JSON com `404 RESOURCE_NOT_FOUND`; não há página HTML ou detalhe interno.
 
-O package base é `com.falapet`, conforme a arquitetura oficial v1.1. Os módulos de topo são `auth`, `user`, `pet`, `device`, `central`, `button`, `event`, `audio`, `context`, `training`, `sync`, `insight` e `shared`. Cada limite é declarado com Spring Modulith e verificado automaticamente; módulos funcionais poderão evoluir internamente para `api`, `application`, `domain` e `infrastructure` quando houver código real.
+O catálogo tipado contém os códigos aprovados na versão 1.1.0: `VALIDATION_ERROR`, `INVALID_CURSOR`, `INVALID_STATE`, `RECOVERY_TOKEN_INVALID`, `INVALID_CREDENTIALS`, `SESSION_INVALID`, `TOKEN_EXPIRED`, `FORBIDDEN`, `CAPABILITY_DISABLED`, `GOOGLE_LOGIN_UNAVAILABLE`, `RESOURCE_NOT_FOUND`, `VERSION_CONFLICT`, `DUPLICATE_RESOURCE`, `ACTIVE_RESOURCE_CONFLICT`, `EMAIL_ALREADY_REGISTERED`, `EVENT_ID_CONFLICT`, `UPLOAD_NOT_FOUND`, `UPLOAD_EXPIRED`, `PAYLOAD_TOO_LARGE`, `UNSUPPORTED_MEDIA_TYPE`, `DOMAIN_RULE_VIOLATION`, `UPLOAD_VALIDATION_FAILED`, `RATE_LIMITED`, `INTERNAL_ERROR`, `CAPABILITY_NOT_AVAILABLE` e `SERVICE_UNAVAILABLE`.
 
-Não existem pacotes globais `controller`, `service` ou `repository`. `shared` contém, por enquanto, somente infraestrutura transversal de segurança e correlação HTTP.
+O tratamento central cobre validação, JSON inválido, parâmetros obrigatórios ou de tipo incorreto, rota inexistente, método não permitido, mídia não suportada, payload excessivo, conflito técnico e erro inesperado. Respostas não incluem stack trace, classe Java, SQL, segredo nem corpo recebido.
 
-## Migrations
+### Correlação
 
-As migrations ficam em `src/main/resources/db/migration`. `V1__create_application_metadata.sql` cria apenas uma estrutura técnica mínima e comprova bootstrap de banco vazio. Uma migration aplicada é imutável: toda mudança de schema futura deve ser uma nova migration versionada. IDs de domínio futuros usarão UUID, mas nenhuma entidade de domínio foi antecipada neste épico.
+Toda resposta inclui `X-Request-Id`. Valores enviados são aceitos quando têm de 1 a 128 caracteres e seguem `[A-Za-z0-9][A-Za-z0-9._:-]*`; valores ausentes, excessivos ou inválidos são substituídos por UUID. O identificador fica no MDC durante a requisição e é removido ao final.
 
-## Limites do Épico 0
+Cada conclusão de request registra `requestId`, método, padrão de rota (sem query string), status, latência e código técnico de erro. Corpos, `Authorization`, `Idempotency-Key`, tokens e dados privados não são registrados.
 
-Ainda **não estão implementados**: autenticação real, usuários, pets, aparelhos, Central, botões, eventos, áudio/mídia, contextos, treinamento, sincronização, insights, object storage, worker ML, ESP32, tokens, login Google, recuperação de senha e rate limiting.
+### Idempotência
 
-A segurança atual é provisória e explícita: somente o health check é público e todas as outras requisições são negadas. Não existe usuário temporário nem credencial gerada. Essa configuração será substituída ou ampliada no épico de autenticação, sem anunciar capacidades contratuais antes de sua implementação.
+A infraestrutura não é aplicada automaticamente a endpoints. Ela oferece aquisição atômica, indicação de processamento concorrente, replay de resposta concluída e detecção de reutilização com fingerprint de payload divergente. JSON semanticamente equivalente quanto a espaços e ordem de propriedades produz o mesmo SHA-256.
+
+A migration `V2__create_http_idempotency_record.sql` usa chave única por operação, sujeito e chave. Sujeito e `Idempotency-Key` são persistidos somente como SHA-256; a resposta armazenada é limitada a 1 MiB. O chamador deve fornecer um escopo técnico estável e nunca persistir mídia, token, senha ou conteúdo privado como resposta idempotente.
+
+O contrato v1.1.0 não define formato ou tamanho geral de `Idempotency-Key`, código público genérico para chave reutilizada com payload divergente, nem prazo de retenção. Por isso esta fundação não inventa esses itens: a divergência permanece um sinal interno a ser mapeado pelo endpoint futuro para um código já aprovado, e não existe limpeza automática. O índice por `created_at` prepara uma política de retenção posterior.
+
+### Paginação por cursor
+
+`CursorPageRequest` aplica o padrão 30 e o intervalo contratual de 1 a 100. `PageData` produz `items` e `page` com `nextCursor` e `hasMore`. O cursor é versionado, determinístico, Base64 URL-safe e autenticado com HMAC-SHA-256; alteração ou formato inválido gera `INVALID_CURSOR`.
+
+Cada endpoint futuro deve definir sua ordenação estável, escopo, fingerprint de filtros e componentes de posição. Dados sensíveis não podem compor o cursor. Offset não é usado como substituto.
+
+## Segurança provisória
+
+Health e a consulta de capacidades são públicas. Rotas registradas que não estejam explicitamente liberadas permanecem negadas; caminhos inexistentes passam pelo MVC apenas para retornar o `404` contratual. Não há usuário temporário, bypass, JWT, OAuth2, token ou tutor fictício.
+
+O Épico 2 ampliará esta configuração com `Authorization: Bearer`, tokens opacos e sessões persistidas, conforme o contrato aprovado.
+
+## Estrutura modular e migrations
+
+Os módulos de topo continuam `auth`, `user`, `pet`, `device`, `central`, `button`, `event`, `audio`, `context`, `training`, `sync`, `insight` e `shared`. Spring Modulith verifica limites e ciclos. Não existem pacotes globais `controller`, `service` ou `repository`.
+
+`shared.contract` contém apenas wire format, cursor e portas de idempotência; implementações web, segurança e JDBC ficam em `shared.infrastructure`. `auth.api` contém somente a rota de capacidades expressamente contratada.
+
+As migrations são imutáveis e ficam em `src/main/resources/db/migration`:
+
+- `V1__create_application_metadata.sql`: metadado técnico inicial.
+- `V2__create_http_idempotency_record.sql`: registro técnico mínimo de idempotência.
+
+O schema é criado exclusivamente pelo Flyway e validado pelo Hibernate (`ddl-auto=validate`). JDBC e serialização usam UTC.
+
+## Fora do escopo
+
+Ainda não estão implementados autenticação, cadastro, login, refresh, logout, recuperação de senha, Google Login, usuários, pets, aparelhos, Central, botões, eventos, áudio, fotos, contextos, treinamento, sincronização, insights, object storage, worker ML, ESP32, rate limiting definitivo ou telemetria. Não existem entidades ou endpoints placeholder para essas funcionalidades.

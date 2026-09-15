@@ -6,6 +6,9 @@ import static org.springframework.security.test.web.servlet.setup.SecurityMockMv
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Instant;
+import java.util.UUID;
+
 import javax.sql.DataSource;
 
 import org.flywaydb.core.Flyway;
@@ -18,6 +21,10 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.util.ClassUtils;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import com.falapet.shared.contract.http.ApiResponse;
+
+import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 class ApplicationContextIntegrationTest extends PostgreSqlIntegrationTest {
@@ -37,11 +44,14 @@ class ApplicationContextIntegrationTest extends PostgreSqlIntegrationTest {
 	@Autowired
 	private WebApplicationContext webApplicationContext;
 
+	@Autowired
+	private ObjectMapper objectMapper;
+
 	@Test
 	void loadsContextAgainstPostgreSqlWithAppliedMigrations() throws Exception {
 		assertThat(applicationContext).isNotNull();
 		assertThat(dataSource.getConnection().getMetaData().getURL()).startsWith("jdbc:postgresql:");
-		assertThat(flyway.info().applied()).hasSize(1);
+		assertThat(flyway.info().applied()).hasSize(2);
 		assertThat(jdbcTemplate.queryForObject(
 			"select metadata_value from application_metadata where metadata_key = 'schema_baseline'",
 			String.class)).isEqualTo("1");
@@ -54,11 +64,24 @@ class ApplicationContextIntegrationTest extends PostgreSqlIntegrationTest {
 	}
 
 	@Test
-	void deniesFutureApiEvenWithAProvisionalTestIdentity() throws Exception {
+	void serializesUuidAndInstantUsingContractWireFormat() throws Exception {
+		UUID id = UUID.fromString("2ac43cf7-c428-4a72-964a-90070b2a69fd");
+		String json = objectMapper.writeValueAsString(
+			ApiResponse.of(new WireValue(id, Instant.parse("2026-09-14T18:00:00Z"))));
+
+		assertThat(json).isEqualTo(
+			"{\"data\":{\"id\":\"2ac43cf7-c428-4a72-964a-90070b2a69fd\",\"occurredAt\":\"2026-09-14T18:00:00Z\"}}");
+	}
+
+	@Test
+	void doesNotExposeAPlaceholderForFutureApi() throws Exception {
 		MockMvcBuilders.webAppContextSetup(webApplicationContext)
 			.apply(springSecurity())
 			.build()
 			.perform(get("/api/v1/pets").with(user("not-a-real-user")))
-			.andExpect(status().isForbidden());
+			.andExpect(status().isNotFound());
+	}
+
+	private record WireValue(UUID id, Instant occurredAt) {
 	}
 }

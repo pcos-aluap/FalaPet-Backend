@@ -27,6 +27,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-falapet}
       DB_USERNAME: ${POSTGRES_USER:-falapet}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-falapet_local}
+      CURSOR_SIGNING_KEY: ${CURSOR_SIGNING_KEY:-local-only-cursor-signing-key-32-bytes}
     ports:
       - "${APP_PORT:-8080}:8080"
     depends_on:

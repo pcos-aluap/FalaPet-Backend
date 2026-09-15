@@ -4,6 +4,11 @@ spring:
       hibernate:
         show_sql: false
 
+falapet:
+  http:
+    cursor:
+      signing-key: test-only-cursor-signing-key-32-bytes
+
 logging:
   structured:
     format:
