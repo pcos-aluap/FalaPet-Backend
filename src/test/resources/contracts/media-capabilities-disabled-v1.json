@@ -1,0 +1,21 @@
+{
+  "data": {
+    "petPhoto": {
+      "enabled": false,
+      "acceptedMediaTypes": ["image/jpeg", "image/png", "image/webp"],
+      "maxSizeBytes": 5242880,
+      "minWidth": 128,
+      "minHeight": 128,
+      "maxWidth": 4096,
+      "maxHeight": 4096,
+      "sha256Required": true
+    },
+    "buttonAudio": {
+      "enabled": false,
+      "acceptedMediaTypes": ["audio/mp4"],
+      "maxSizeBytes": 5242880,
+      "maxDurationMs": 10000,
+      "sha256Required": true
+    }
+  }
+}

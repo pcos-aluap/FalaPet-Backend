@@ -33,6 +33,7 @@ final class AuthSecurityConfiguration {
                         errorWriter.write(request, response, ErrorCode.SESSION_INVALID.status(), ErrorCode.SESSION_INVALID)))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/capabilities").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/media/capabilities").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login",
                                 "/api/v1/auth/google", "/api/v1/auth/refresh",
                                 "/api/v1/auth/password-recovery/request",

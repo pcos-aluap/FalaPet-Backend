@@ -1,0 +1,16 @@
+{
+  "data": {
+    "pet": {
+      "id": "2ac43cf7-c428-4a72-964a-90070b2a69fd",
+      "name": "Marley",
+      "species": "DOG",
+      "photo": null,
+      "birthDate": "2022-05-10",
+      "sex": "MALE",
+      "status": "ACTIVE",
+      "createdAt": "2026-09-13T18:00:00Z",
+      "updatedAt": "2026-09-13T18:00:00Z",
+      "version": 1
+    }
+  }
+}

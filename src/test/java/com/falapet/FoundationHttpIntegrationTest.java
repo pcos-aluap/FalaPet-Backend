@@ -43,7 +43,7 @@ class FoundationHttpIntegrationTest extends PostgreSqlIntegrationTest {
 	@Test
 	void exposesOnlyContractedCapabilitiesAndGeneratesSafeRequestId() throws Exception {
 		HttpResponse<String> capabilities = get("/api/v1/auth/capabilities", "capabilities-1");
-		HttpResponse<String> missing = get("/api/v1/pets", null);
+		HttpResponse<String> missing = get("/api/v1/not-implemented", null);
 		HttpResponse<String> invalid = get("/actuator/health", "invalid request id with spaces");
 		HttpResponse<String> excessive = get("/actuator/health", "x".repeat(129));
 

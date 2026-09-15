@@ -51,7 +51,7 @@ class ApplicationContextIntegrationTest extends PostgreSqlIntegrationTest {
 	void loadsContextAgainstPostgreSqlWithAppliedMigrations() throws Exception {
 		assertThat(applicationContext).isNotNull();
 		assertThat(dataSource.getConnection().getMetaData().getURL()).startsWith("jdbc:postgresql:");
-		assertThat(flyway.info().applied()).hasSize(6);
+		assertThat(flyway.info().applied()).hasSize(7);
 		assertThat(jdbcTemplate.queryForObject(
 			"select metadata_value from application_metadata where metadata_key = 'schema_baseline'",
 			String.class)).isEqualTo("1");
@@ -78,7 +78,7 @@ class ApplicationContextIntegrationTest extends PostgreSqlIntegrationTest {
 		MockMvcBuilders.webAppContextSetup(webApplicationContext)
 			.apply(springSecurity())
 			.build()
-			.perform(get("/api/v1/pets").with(user("not-a-real-user")))
+			.perform(get("/api/v1/buttons").with(user("not-a-real-user")))
 			.andExpect(status().isNotFound());
 	}
 

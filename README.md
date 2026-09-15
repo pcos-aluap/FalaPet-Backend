@@ -160,7 +160,7 @@ As três rotas exigem `Authorization: Bearer <accessToken>` opaco; a identidade 
 
 `POST /api/v1/users/me/deletion-requests` exige `Idempotency-Key` e retorna `202` com `requestId`, `status: "PENDING"`, `requestedAt` e `effectiveAt: null`. A mesma chave e requisição reproduzem a resposta; reutilizar a chave com conteúdo diferente retorna `409 DUPLICATE_RESOURCE`. Uma solicitação já `PENDING` é reproduzida também para nova chave, evitando múltiplos registros técnicos para o mesmo tutor. A chave e o identificador do tutor são guardados como hash no registro transversal de idempotência. `PENDING` significa apenas que o pedido foi registrado: os dados não foram excluídos, anonimizados ou bloqueados, e as sessões não são revogadas.
 
-Confirmação, cancelamento, prazo de retenção, análise jurídica, execução física, exportação e fluxo administrativo permanecem reservados. O Épico 4 cuidará de pets e fotos após a definição de seus próprios limites; nenhum desses recursos é criado pelo módulo `user`.
+Confirmação, cancelamento, prazo de retenção, análise jurídica, execução física, exportação e fluxo administrativo permanecem reservados. O módulo `user` não cria Pets ou fotos; a gestão de Pets implementada neste incremento pertence ao módulo `pet`.
 
 Para validar este épico, execute os comandos de `clean verify` acima com Docker disponível. Os testes criam PostgreSQL vazio, aplicam as migrations Flyway e exercitam `If-Match`, concorrência, idempotência, ownership e limites Spring Modulith. Não há variável de ambiente nova nem provedor externo necessário para as três rotas.
 
@@ -178,9 +178,18 @@ As migrations são imutáveis e ficam em `src/main/resources/db/migration`:
 - `V4__create_auth_registration_idempotency.sql`: replay cifrado de cadastro.
 - `V5__create_auth_logout_idempotency.sql`: replay técnico do logout.
 - `V6__create_user_deletion_request.sql`: registro técnico único `PENDING` da solicitação LGPD, vinculado ao usuário.
+- `V7__create_pet.sql`: Pets vinculados ao tutor, índice para cursor e marcador transacional de criação idempotente.
 
 O schema é criado exclusivamente pelo Flyway e validado pelo Hibernate (`ddl-auto=validate`). JDBC e serialização usam UTC.
 
-## Fora do escopo
+## Pets e mídia
 
-Pets, aparelhos, Central, botões, eventos, áudio, fotos, contextos, treinamento, sincronização, insights, object storage, worker ML e ESP32 continuam fora desta entrega. Google Login e envio de recuperação dependem das configurações e decisões externas indicadas acima. A política jurídica e operacional para executar uma exclusão de conta ainda não está definida.
+O [Épico 4A — Gestão de Pets](docs/epic4-pets-and-photos.md) está aprovado quando os gates do projeto passam. A migration V7 cria somente Pets e o marcador transacional de criação idempotente.
+
+O Épico 4B — Fotos de Pets está bloqueado/adiado. O contrato v1.1.0 ainda exige o fluxo de fotos, mas não há decisão de provider, modelo operacional ou configuração de object storage. Portanto o Épico 4 completo está reprovado até uma emenda contratual aprovada e uma integração validada. `Pet.photo` permanece `null`; nenhuma capacidade de mídia é anunciada como disponível.
+
+Áudios de botões não pertencem a um backend de mídia neste estágio: ficam locais no celular, no Tutor Mode, e futuramente serão distribuídos ao cartão de memória da Central física. O backend não recebe binário de áudio, não decide reprodução em tempo real e não recebe nem devolve telemetria de playback.
+
+## Fora do escopo deste incremento
+
+Aparelhos, Central, botões, eventos, áudio remoto, fotos operacionais, contextos, treinamento, sincronização, insights, object storage concreto, worker ML e ESP32 continuam fora deste incremento. Google Login e envio de recuperação dependem das configurações e decisões externas indicadas acima. A política jurídica e operacional para executar uma exclusão de conta ainda não está definida.
