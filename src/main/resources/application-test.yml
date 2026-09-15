@@ -5,6 +5,12 @@ spring:
         show_sql: false
 
 falapet:
+  auth:
+    token-hash-key: test-only-auth-token-hash-key-32-bytes
+    idempotency-encryption-key: fedcba9876543210fedcba9876543210
+    access-ttl: PT15M
+    refresh-ttl: P30D
+    recovery-ttl: PT30M
   http:
     cursor:
       signing-key: test-only-cursor-signing-key-32-bytes

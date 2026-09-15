@@ -1,6 +1,6 @@
 # FalaPet Backend
 
-Fundação executável do backend FalaPet, em monólito modular, com Java 21, Spring Boot, PostgreSQL, Flyway e Spring Modulith. O Épico 1 estabelece o contrato HTTP transversal em `/api/v1`; não implementa funcionalidades de domínio nem autenticação real.
+Backend FalaPet em monólito modular, com Java 21, Spring Boot, PostgreSQL, Flyway e Spring Modulith. Os Épicos 0 e 1 estabelecem a fundação e o contrato HTTP transversal. O Épico 2 adiciona autenticação local e sessões opacas no módulo `auth`.
 
 ## Pré-requisitos
 
@@ -69,7 +69,7 @@ curl -i http://localhost:8080/actuator/health
 curl -i http://localhost:8080/api/v1/auth/capabilities
 ```
 
-O único endpoint Actuator exposto é `GET /actuator/health`. A única rota pública em `/api/v1` é `GET /api/v1/auth/capabilities`, exigida pelo contrato; neste épico ela anuncia `passwordLogin`, `googleLogin` e `passwordRecovery` como `false`. Nenhuma capacidade reservada é anunciada.
+O único endpoint Actuator exposto é `GET /actuator/health`. As rotas públicas de autenticação são capacidades, cadastro, login, refresh, Google provisório e recuperação. As demais rotas registradas exigem `Authorization: Bearer <accessToken>`. Capacidades anunciam `passwordLogin=true`, `googleLogin=false` e `passwordRecovery=false` enquanto o provedor de entrega de recuperação não for aprovado/configurado.
 
 ## Container da aplicação
 
@@ -96,6 +96,14 @@ Consulte os endpoints acima e encerre com `docker compose --profile app down`.
 | `DB_USERNAME` | Em produção | Usuário PostgreSQL |
 | `DB_PASSWORD` | Em produção | Senha PostgreSQL |
 | `CURSOR_SIGNING_KEY` | Em produção | Segredo com ao menos 32 bytes para assinar cursores opacos |
+| `AUTH_TOKEN_HASH_KEY` | Em produção | Chave com ao menos 32 bytes para HMAC dos tokens opacos |
+| `AUTH_IDEMPOTENCY_ENCRYPTION_KEY` | Em produção | Chave de exatamente 32 bytes para cifrar replay de cadastro |
+| `AUTH_ACCESS_TTL` | Em produção | Duração ISO-8601 do access token, até 30 min |
+| `AUTH_REFRESH_TTL` | Em produção | Duração ISO-8601 do refresh token, maior que access e até 90 dias |
+| `AUTH_RECOVERY_TTL` | Em produção | Duração ISO-8601 do token de recuperação, até 1 hora |
+| `AUTH_ARGON2_SALT_LENGTH`, `AUTH_ARGON2_HASH_LENGTH`, `AUTH_ARGON2_PARALLELISM`, `AUTH_ARGON2_MEMORY_KIB`, `AUTH_ARGON2_ITERATIONS` | Não | Parâmetros Argon2id; mínimos 16, 32, 1, 19456 KiB, 2 |
+| `AUTH_RATE_WINDOW`, `AUTH_RATE_MAX_ATTEMPTS` | Não | Janela e tentativas por IP/rota; padrões 1 min e 10 |
+| `AUTH_COMPROMISED_PASSWORD_SHA256` | Não | Hashes SHA-256 hexadecimais separados por vírgula para política local configurada |
 | `MAX_JSON_PAYLOAD_BYTES` | Não | Limite técnico JSON; padrão 1 MiB |
 | `DB_MAX_POOL_SIZE` | Não | Pool de produção; padrão 10 |
 | `LOG_LEVEL` | Não | Nível raiz de produção; padrão `INFO` |
@@ -136,25 +144,30 @@ O contrato v1.1.0 não define formato ou tamanho geral de `Idempotency-Key`, có
 
 Cada endpoint futuro deve definir sua ordenação estável, escopo, fingerprint de filtros e componentes de posição. Dados sensíveis não podem compor o cursor. Offset não é usado como substituto.
 
-## Segurança provisória
+## Autenticação e sessão
 
-Health e a consulta de capacidades são públicas. Rotas registradas que não estejam explicitamente liberadas permanecem negadas; caminhos inexistentes passam pelo MVC apenas para retornar o `404` contratual. Não há usuário temporário, bypass, JWT, OAuth2, token ou tutor fictício.
+`POST /api/v1/auth/register` exige `Idempotency-Key` e retorna tutor e sessão com `201`. `POST /api/v1/auth/login` retorna a mesma estrutura com `200`; falhas de credencial usam `401 INVALID_CREDENTIALS` uniformemente. `GET /api/v1/auth/session` exige Bearer e retorna apenas tutor e `sessionId`. `POST /api/v1/auth/refresh` é o bootstrap da sessão e entrega novo par opaco. O token anterior é consumido em transação; seu reuso revoga a família e a sessão. `POST /api/v1/auth/logout` exige Bearer e chave idempotente, revoga a sessão e retorna `204`, inclusive no replay da mesma solicitação. O mobile conserva o par apenas em armazenamento seguro e não interpreta o conteúdo dos tokens.
 
-O Épico 2 ampliará esta configuração com `Authorization: Bearer`, tokens opacos e sessões persistidas, conforme o contrato aprovado.
+`POST /api/v1/auth/password-recovery/request` exige chave idempotente e responde `202 {"data":{"accepted":true}}` sem indicar a existência da conta. `POST /api/v1/auth/password-recovery/confirm` valida token de uso único e nova senha, retorna `204` e revoga as sessões do tutor. Não existe provedor de entrega aprovado/configurado: a solicitação não gera nem divulga tokens, e `passwordRecovery=false` permanece publicado. A porta de entrega permite integrar um provedor quando a decisão externa estiver disponível. `POST /api/v1/auth/google` retorna `403 GOOGLE_LOGIN_UNAVAILABLE`; não há audiência, emissor e configuração Google aprovados para habilitar a capacidade.
+
+Cadastro, login, refresh e recuperação usam buckets PostgreSQL por IP e rota. Esgotamento retorna `429 RATE_LIMITED` com `Retry-After`; uma janela encerrada volta a aceitar pedidos. As respostas de autenticação usam `Cache-Control: no-store`.
 
 ## Estrutura modular e migrations
 
 Os módulos de topo continuam `auth`, `user`, `pet`, `device`, `central`, `button`, `event`, `audio`, `context`, `training`, `sync`, `insight` e `shared`. Spring Modulith verifica limites e ciclos. Não existem pacotes globais `controller`, `service` ou `repository`.
 
-`shared.contract` contém apenas wire format, cursor e portas de idempotência; implementações web, segurança e JDBC ficam em `shared.infrastructure`. `auth.api` contém somente a rota de capacidades expressamente contratada.
+`shared.contract` contém apenas wire format, cursor e portas de idempotência; implementações web e JDBC transversais ficam em `shared.infrastructure`. `auth` reúne API, aplicação, domínio e infraestrutura de autenticação, inclusive o filtro Bearer e os adapters JDBC/Argon2id.
 
 As migrations são imutáveis e ficam em `src/main/resources/db/migration`:
 
 - `V1__create_application_metadata.sql`: metadado técnico inicial.
 - `V2__create_http_idempotency_record.sql`: registro técnico mínimo de idempotência.
+- `V3__create_auth_identity_and_sessions.sql`: identidade local, sessões, tokens por hash e rate limiting.
+- `V4__create_auth_registration_idempotency.sql`: replay cifrado de cadastro.
+- `V5__create_auth_logout_idempotency.sql`: replay técnico do logout.
 
 O schema é criado exclusivamente pelo Flyway e validado pelo Hibernate (`ddl-auto=validate`). JDBC e serialização usam UTC.
 
 ## Fora do escopo
 
-Ainda não estão implementados autenticação, cadastro, login, refresh, logout, recuperação de senha, Google Login, usuários, pets, aparelhos, Central, botões, eventos, áudio, fotos, contextos, treinamento, sincronização, insights, object storage, worker ML, ESP32, rate limiting definitivo ou telemetria. Não existem entidades ou endpoints placeholder para essas funcionalidades.
+Perfil editável, direitos LGPD e exclusão de conta pertencem ao Épico 3. Pets, aparelhos, Central, botões, eventos, áudio, fotos, contextos, treinamento, sincronização, insights, object storage, worker ML e ESP32 continuam fora desta entrega. Google Login e envio de recuperação dependem das configurações e decisões externas indicadas acima.

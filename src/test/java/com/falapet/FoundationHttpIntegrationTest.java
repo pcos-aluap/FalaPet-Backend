@@ -52,7 +52,7 @@ class FoundationHttpIntegrationTest extends PostgreSqlIntegrationTest {
 			.contains("application/json;charset=UTF-8");
 		assertThat(capabilities.headers().firstValue("X-Request-Id")).contains("capabilities-1");
 		assertThat(capabilities.body()).isEqualTo(
-			"{\"data\":{\"passwordLogin\":false,\"googleLogin\":false,\"passwordRecovery\":false}}");
+			"{\"data\":{\"passwordLogin\":true,\"googleLogin\":false,\"passwordRecovery\":false}}");
 
 		assertThat(missing.statusCode()).isEqualTo(404);
 		assertThat(missing.headers().firstValue("Content-Type"))

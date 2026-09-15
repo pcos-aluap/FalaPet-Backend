@@ -5,6 +5,7 @@ import org.springframework.boot.security.autoconfigure.actuate.web.servlet.Endpo
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -22,6 +23,7 @@ import com.falapet.shared.infrastructure.web.ContractErrorWriter;
 public class FoundationSecurityConfiguration {
 
 	@Bean
+	@Order(2)
 	SecurityFilterChain foundationSecurityFilterChain(
 			HttpSecurity http,
 			ContractErrorWriter errorWriter,

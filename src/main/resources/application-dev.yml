@@ -5,6 +5,12 @@ spring:
     password: ${DB_PASSWORD:falapet_local}
 
 falapet:
+  auth:
+    token-hash-key: ${AUTH_TOKEN_HASH_KEY:local-only-auth-token-hash-key-32-bytes}
+    idempotency-encryption-key: ${AUTH_IDEMPOTENCY_ENCRYPTION_KEY:0123456789abcdef0123456789abcdef}
+    access-ttl: ${AUTH_ACCESS_TTL:PT15M}
+    refresh-ttl: ${AUTH_REFRESH_TTL:P30D}
+    recovery-ttl: ${AUTH_RECOVERY_TTL:PT30M}
   http:
     cursor:
       signing-key: ${CURSOR_SIGNING_KEY:local-only-cursor-signing-key-32-bytes}
