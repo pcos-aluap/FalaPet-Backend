@@ -1,0 +1,16 @@
+{
+  "error": {
+    "code": "VERSION_CONFLICT",
+    "message": "Não foi possível concluir a solicitação.",
+    "retryable": false,
+    "details": {
+      "tutor": {
+        "id": "b758d342-8af1-4f18-9c71-1effaf6df106",
+        "name": "Paula Oliveira",
+        "email": "paula@example.com",
+        "createdAt": "2026-09-13T18:00:00Z",
+        "version": 2
+      }
+    }
+  }
+}

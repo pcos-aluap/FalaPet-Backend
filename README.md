@@ -1,6 +1,6 @@
 # FalaPet Backend
 
-Backend FalaPet em monólito modular, com Java 21, Spring Boot, PostgreSQL, Flyway e Spring Modulith. Os Épicos 0 e 1 estabelecem a fundação e o contrato HTTP transversal. O Épico 2 adiciona autenticação local e sessões opacas no módulo `auth`.
+Backend FalaPet em monólito modular, com Java 21, Spring Boot, PostgreSQL, Flyway e Spring Modulith. Os Épicos 0 e 1 estabelecem a fundação e o contrato HTTP transversal. O Épico 2 adiciona autenticação local e sessões opacas no módulo `auth`; o Épico 3 implementa conta do tutor e solicitação técnica LGPD no módulo `user`.
 
 ## Pré-requisitos
 
@@ -152,11 +152,23 @@ Cada endpoint futuro deve definir sua ordenação estável, escopo, fingerprint 
 
 Cadastro, login, refresh e recuperação usam buckets PostgreSQL por IP e rota. Esgotamento retorna `429 RATE_LIMITED` com `Retry-After`; uma janela encerrada volta a aceitar pedidos. As respostas de autenticação usam `Cache-Control: no-store`.
 
+## Conta do tutor e solicitação LGPD
+
+As três rotas exigem `Authorization: Bearer <accessToken>` opaco; a identidade vem somente da sessão autenticada. `GET /api/v1/users/me` retorna `200 {"data":{"tutor":Tutor}}`, com exatamente `id`, `name`, `email`, `createdAt` e `version`. Credenciais, hashes, tokens e sessões não fazem parte do perfil.
+
+`PATCH /api/v1/users/me` aceita apenas `{ "name": "Paula Oliveira" }` e exige `If-Match: "<version>"`, com aspas. O nome é aparado nas bordas e deve ter de 1 a 120 caracteres visíveis; e-mail e método de autenticação não podem ser alterados por essa rota. Uma atualização válida retorna `200 {"data":{"tutor":Tutor}}` com a versão incrementada. O banco atualiza condicionalmente pela versão informada; uma versão desatualizada retorna `409 VERSION_CONFLICT` com o próprio Tutor atual em `error.details.tutor`, sem last-write-wins. Ausência ou formato inválido de `If-Match` retorna `400 VALIDATION_ERROR`.
+
+`POST /api/v1/users/me/deletion-requests` exige `Idempotency-Key` e retorna `202` com `requestId`, `status: "PENDING"`, `requestedAt` e `effectiveAt: null`. A mesma chave e requisição reproduzem a resposta; reutilizar a chave com conteúdo diferente retorna `409 DUPLICATE_RESOURCE`. Uma solicitação já `PENDING` é reproduzida também para nova chave, evitando múltiplos registros técnicos para o mesmo tutor. A chave e o identificador do tutor são guardados como hash no registro transversal de idempotência. `PENDING` significa apenas que o pedido foi registrado: os dados não foram excluídos, anonimizados ou bloqueados, e as sessões não são revogadas.
+
+Confirmação, cancelamento, prazo de retenção, análise jurídica, execução física, exportação e fluxo administrativo permanecem reservados. O Épico 4 cuidará de pets e fotos após a definição de seus próprios limites; nenhum desses recursos é criado pelo módulo `user`.
+
+Para validar este épico, execute os comandos de `clean verify` acima com Docker disponível. Os testes criam PostgreSQL vazio, aplicam as migrations Flyway e exercitam `If-Match`, concorrência, idempotência, ownership e limites Spring Modulith. Não há variável de ambiente nova nem provedor externo necessário para as três rotas.
+
 ## Estrutura modular e migrations
 
 Os módulos de topo continuam `auth`, `user`, `pet`, `device`, `central`, `button`, `event`, `audio`, `context`, `training`, `sync`, `insight` e `shared`. Spring Modulith verifica limites e ciclos. Não existem pacotes globais `controller`, `service` ou `repository`.
 
-`shared.contract` contém apenas wire format, cursor e portas de idempotência; implementações web e JDBC transversais ficam em `shared.infrastructure`. `auth` reúne API, aplicação, domínio e infraestrutura de autenticação, inclusive o filtro Bearer e os adapters JDBC/Argon2id.
+`shared.contract` contém apenas wire format, cursor e portas de idempotência; implementações web e JDBC transversais ficam em `shared.infrastructure`. `auth` reúne API, aplicação, domínio e infraestrutura de autenticação, inclusive o filtro Bearer e os adapters JDBC/Argon2id. A API interna `auth.TutorIdentity` expõe somente o UUID do tutor ao módulo `user`; este módulo contém controllers, casos de uso, domínio e adapters próprios para perfil e solicitação LGPD.
 
 As migrations são imutáveis e ficam em `src/main/resources/db/migration`:
 
@@ -165,9 +177,10 @@ As migrations são imutáveis e ficam em `src/main/resources/db/migration`:
 - `V3__create_auth_identity_and_sessions.sql`: identidade local, sessões, tokens por hash e rate limiting.
 - `V4__create_auth_registration_idempotency.sql`: replay cifrado de cadastro.
 - `V5__create_auth_logout_idempotency.sql`: replay técnico do logout.
+- `V6__create_user_deletion_request.sql`: registro técnico único `PENDING` da solicitação LGPD, vinculado ao usuário.
 
 O schema é criado exclusivamente pelo Flyway e validado pelo Hibernate (`ddl-auto=validate`). JDBC e serialização usam UTC.
 
 ## Fora do escopo
 
-Perfil editável, direitos LGPD e exclusão de conta pertencem ao Épico 3. Pets, aparelhos, Central, botões, eventos, áudio, fotos, contextos, treinamento, sincronização, insights, object storage, worker ML e ESP32 continuam fora desta entrega. Google Login e envio de recuperação dependem das configurações e decisões externas indicadas acima.
+Pets, aparelhos, Central, botões, eventos, áudio, fotos, contextos, treinamento, sincronização, insights, object storage, worker ML e ESP32 continuam fora desta entrega. Google Login e envio de recuperação dependem das configurações e decisões externas indicadas acima. A política jurídica e operacional para executar uma exclusão de conta ainda não está definida.
