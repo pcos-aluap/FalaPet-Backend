@@ -68,6 +68,8 @@ final class JdbcEventStore implements EventStore {
                 String existing = jdbc.queryForObject("SELECT payload_fingerprint FROM button_event WHERE id = ?", String.class, event.id());
                 return existing.equals(event.fingerprint()) ? PersistResult.ALREADY_ACCEPTED : PersistResult.CONFLICT;
             }
+            jdbc.update("INSERT INTO event_button_snapshot(event_id, button_name) SELECT ?, name FROM button WHERE id = ?",
+                    event.id(), event.buttonId());
             var activePets = pets.activePetIds(tutorId);
             if (activePets.size() == 1) jdbc.update("""
                     INSERT INTO event_pet_attribution(event_id, pet_id, origin, created_at)

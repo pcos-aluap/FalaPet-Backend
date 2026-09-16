@@ -82,6 +82,23 @@ class ButtonEventIntegrationTest extends PostgreSqlIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM button_event WHERE id = ?", Integer.class, id)).isEqualTo(1);
     }
 
+    @Test
+    void exposesHistoryAndKeepsHumanMetadataOutsideTheRawFact() throws Exception {
+        Tutor tutor = register(); Fixture fixture = fixture(tutor); UUID eventId = UUID.randomUUID();
+        assertThat(post(tutor.token, "{\"events\":[" + event(eventId, fixture.buttonId, fixture.espId, "button-a", 8, null, "TEST") + "]}").body()).contains("ACCEPTED");
+        HttpResponse<String> history = get(tutor.token, "/button-events?purpose=TEST&limit=1");
+        assertThat(history.statusCode()).isEqualTo(200);
+        assertThat(history.body()).contains(eventId.toString(), "buttonNameSnapshot").doesNotContain("playback");
+        HttpResponse<String> created = postPath(tutor.token, "/context-types", "{\"name\":\"Near dinner\"}", UUID.randomUUID().toString());
+        assertThat(created.statusCode()).isEqualTo(201);
+        UUID contextType = UUID.fromString(json.readTree(created.body()).at("/data/contextType/id").asText());
+        HttpResponse<String> context = put(tutor.token, "/button-events/" + eventId + "/context", "{\"contextTypeId\":\"" + contextType + "\",\"note\":\"Asked for food\"}", null);
+        assertThat(context.statusCode()).as(context.body()).isEqualTo(200);
+        assertThat(put(tutor.token, "/button-events/" + eventId + "/classification", "{\"value\":\"UNCERTAIN\"}", null).statusCode()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM button_event WHERE id=?", Integer.class, eventId)).isEqualTo(1);
+        assertThat(get(tutor.token, "/button-events/" + eventId).body()).contains("Near dinner", "Asked for food", "UNCERTAIN");
+    }
+
     private Fixture fixture(Tutor tutor) throws Exception {
         UUID button = UUID.fromString(json.readTree(postPath(tutor.token, "/buttons", "{\"name\":\"Food\"}", UUID.randomUUID().toString()).body()).get("data").get("button").get("id").asText());
         UUID esp = UUID.randomUUID(); UUID binding = UUID.randomUUID(); Timestamp now = Timestamp.from(Instant.now());
@@ -93,6 +110,8 @@ class ButtonEventIntegrationTest extends PostgreSqlIntegrationTest {
     private Tutor register() throws Exception { JsonNode data = json.readTree(postPath(null, "/auth/register", "{\"name\":\"Tutor\",\"email\":\"event-" + UUID.randomUUID() + "@example.com\",\"password\":\"long-password-123456\"}", UUID.randomUUID().toString()).body()).get("data"); return new Tutor(UUID.fromString(data.get("tutor").get("id").asText()), data.get("session").get("accessToken").asText()); }
     private String event(UUID id, UUID button, UUID esp, String physical, long sequence, UUID training, String purpose) { return "{\"id\":\"" + id + "\",\"buttonId\":\"" + button + "\",\"esp32DeviceId\":\"" + esp + "\",\"physicalButtonId\":\"" + physical + "\",\"espSessionId\":\"" + UUID.nameUUIDFromBytes(("session" + sequence).getBytes()) + "\",\"sequence\":" + sequence + ",\"espUptimeMs\":100,\"occurredAt\":\"2026-09-16T00:00:00Z\",\"receivedAt\":\"2026-09-16T00:00:01Z\",\"timeQuality\":\"ESTIMATED_FROM_MOBILE\",\"transport\":\"BLE\",\"purpose\":\"" + purpose + "\",\"trainingSessionId\":" + (training == null ? "null" : "\"" + training + "\"") + "}"; }
     private HttpResponse<String> post(String token, String body) throws Exception { return postPath(token, "/sync/button-events", body, null); }
+    private HttpResponse<String> get(String token, String path) throws Exception { return client.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1" + path)).timeout(Duration.ofSeconds(20)).header("Authorization", "Bearer " + token).header("X-Request-Id", "event-test").GET().build(), HttpResponse.BodyHandlers.ofString()); }
+    private HttpResponse<String> put(String token, String path, String body, String version) throws Exception { HttpRequest.Builder builder=HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1" + path)).timeout(Duration.ofSeconds(20)).header("Authorization", "Bearer " + token).header("Content-Type", "application/json").header("X-Request-Id", "event-test").PUT(HttpRequest.BodyPublishers.ofString(body)); if(version!=null) builder.header("If-Match",version); return client.send(builder.build(),HttpResponse.BodyHandlers.ofString()); }
     private HttpResponse<String> unchecked(String token, String body) { try { return post(token, body); } catch (Exception e) { throw new AssertionError(e); } }
     private HttpResponse<String> postPath(String token, String path, String body, String key) throws Exception { HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/api/v1" + path)).timeout(Duration.ofSeconds(20)).header("Content-Type", "application/json").header("X-Request-Id", "event-test").POST(HttpRequest.BodyPublishers.ofString(body)); if (token != null) b.header("Authorization", "Bearer " + token); if (key != null) b.header("Idempotency-Key", key); return client.send(b.build(), HttpResponse.BodyHandlers.ofString()); }
     private record Tutor(UUID id, String token) {} private record Fixture(UUID buttonId, UUID espId) {}
