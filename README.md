@@ -179,6 +179,7 @@ As migrations são imutáveis e ficam em `src/main/resources/db/migration`:
 - `V5__create_auth_logout_idempotency.sql`: replay técnico do logout.
 - `V6__create_user_deletion_request.sql`: registro técnico único `PENDING` da solicitação LGPD, vinculado ao usuário.
 - `V7__create_pet.sql`: Pets vinculados ao tutor, índice para cursor e marcador transacional de criação idempotente.
+- `V8__create_mobile_device.sql`: instalações Android por tutor, com preferência local versionada e padrão seguro desativado.
 
 O schema é criado exclusivamente pelo Flyway e validado pelo Hibernate (`ddl-auto=validate`). JDBC e serialização usam UTC.
 
@@ -190,6 +191,16 @@ O Épico 4B — Fotos de Pets está bloqueado/adiado. O contrato v1.1.0 ainda ex
 
 Áudios de botões não pertencem a um backend de mídia neste estágio: ficam locais no celular, no Tutor Mode, e futuramente serão distribuídos ao cartão de memória da Central física. O backend não recebe binário de áudio, não decide reprodução em tempo real e não recebe nem devolve telemetria de playback.
 
+## Aparelhos e preferência de reprodução
+
+`PUT /api/v1/mobile-devices/{mobileDeviceId}` registra idempotentemente uma instalação Android identificada por UUID gerado pelo mobile. O corpo é exatamente `platform: "ANDROID"`, `appVersion` e `localPlaybackEnabled: false`; a resposta é `204`. O UUID pertence ao tutor autenticado e uma tentativa de reutilizá-lo por outro tutor não revela nem modifica o registro.
+
+`GET /api/v1/mobile-devices/{mobileDeviceId}/preferences` e `PATCH /api/v1/mobile-devices/{mobileDeviceId}/preferences` trabalham somente com `{ "preference": { "localPlaybackEnabled", "version" } }`. O PATCH aceita apenas `localPlaybackEnabled`, requer `If-Match: "<version>"` e usa atualização condicional no PostgreSQL; conflito devolve `409 VERSION_CONFLICT` e a preferência atual segura. A criação de cada instalação inicia sempre em `false`, e alterar uma instalação não altera outra.
+
+Essa preferência é apenas sincronizada: a decisão e a execução de playback ocorrem localmente no Tutor Mode, inclusive offline. O backend não armazena áudio, binário, URL de áudio, prazo, comando ou telemetria de playback. Áudios permanecem locais ao celular agora e poderão ser distribuídos para o cartão da Central física no futuro.
+
+As rotas de ESP32 não foram registradas. O contrato atual não define o schema de `Esp32Device`, a resposta da listagem, nem o protocolo de reautenticação/confirmação forte obrigatório para desvincular. Pareamento, criação/remoção de binding físico, credenciais e comandos BLE/RF/Wi-Fi continuam reservados até um contrato de segurança específico aprovado.
+
 ## Fora do escopo deste incremento
 
-Aparelhos, Central, botões, eventos, áudio remoto, fotos operacionais, contextos, treinamento, sincronização, insights, object storage concreto, worker ML e ESP32 continuam fora deste incremento. Google Login e envio de recuperação dependem das configurações e decisões externas indicadas acima. A política jurídica e operacional para executar uma exclusão de conta ainda não está definida.
+Central, botões, eventos, áudio remoto, fotos operacionais, contextos, treinamento, sincronização, insights, object storage concreto, worker ML e ESP32 continuam fora deste incremento. Google Login e envio de recuperação dependem das configurações e decisões externas indicadas acima. A política jurídica e operacional para executar uma exclusão de conta ainda não está definida.
