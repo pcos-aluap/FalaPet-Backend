@@ -94,7 +94,7 @@ class ButtonIntegrationTest extends PostgreSqlIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM button WHERE id = ?", Integer.class, UUID.fromString(id))).isEqualTo(1);
         assertThat(send("GET", "/buttons/" + id + "/binding", null, access, null, null).statusCode()).isEqualTo(404);
         assertThat(send("POST", "/buttons/" + id + "/audio-uploads", "{}", access, UUID.randomUUID().toString(), null).statusCode()).isEqualTo(404);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.tables WHERE table_name LIKE '%audio%' OR table_name LIKE '%binding%'", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.tables WHERE table_name LIKE '%audio%'", Integer.class)).isZero();
     }
 
     private String register() throws Exception {

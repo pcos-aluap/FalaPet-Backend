@@ -21,13 +21,14 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.falapet.pet.application.ActivePetFinder;
 import com.falapet.pet.application.PetStore;
 import com.falapet.pet.domain.Pet;
 import com.falapet.shared.contract.http.ContractException;
 import com.falapet.shared.contract.http.ErrorCode;
 
 @Component
-final class JdbcPetStore implements PetStore {
+final class JdbcPetStore implements PetStore, ActivePetFinder {
     private static final String COLUMNS = "id, name, species, birth_date, sex, status, created_at, updated_at, version";
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
@@ -78,6 +79,12 @@ final class JdbcPetStore implements PetStore {
                     OffsetDateTime.ofInstant(now, ZoneOffset.UTC));
             return find(tutorId, id).orElseThrow();
         });
+    }
+
+    @Override
+    public List<UUID> activePetIds(UUID tutorId) {
+        return jdbc.query("SELECT id FROM pet WHERE tutor_id = ? AND status = 'ACTIVE' ORDER BY id",
+                (rs, row) -> rs.getObject("id", UUID.class), tutorId);
     }
 
     @Override

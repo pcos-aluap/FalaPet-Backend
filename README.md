@@ -210,6 +210,10 @@ Button é lógico e independente de áudio e hardware. `activeAudio` e `activeBi
 
 O Épico 6B — áudio no backend — está adiado/bloqueado pela decisão atual do produto, apesar do contrato ainda mencionar upload e object storage. Gravação, validação, hash/formato e substituição atômica ocorrem localmente no Tutor Mode; o mobile usa arquivo temporário e troca segura antes de substituir o ativo. O backend não armazena arquivo, hash, URI, duração, URL, estado operacional ou telemetria de playback. A futura transferência ao cartão de memória da Central exige contrato próprio.
 
+## Epic 7 — ingestão de ButtonEvents
+
+`POST /api/v1/sync/button-events` recebe, autenticado, lotes de 1 a 100 fatos brutos e retorna `200` com resultado ordenado por item. PostgreSQL deduplica globalmente pelo UUID e fingerprint SHA-256 canônico: `ACCEPTED`, `ALREADY_ACCEPTED` ou `REJECTED` com `EVENT_ID_CONFLICT`. O evento é imutável; `EventPetAttribution` é separado e só é criado quando há exatamente um Pet ativo no aceite. ESP32 ativa, binding físico ativo e TrainingSession ativa são pré-requisitos internos, sem APIs públicas de provisionamento. Não há histórico, áudio, playback ou telemetria. A Emenda 001 e o OpenAPI deste escopo estão em `docs/contracts/amendments/` e `docs/openapi/`.
+
 ## Fora do escopo deste incremento
 
 Central, botões, eventos, áudio remoto, fotos operacionais, contextos, treinamento, sincronização, insights, object storage concreto, worker ML e ESP32 continuam fora deste incremento. Google Login e envio de recuperação dependem das configurações e decisões externas indicadas acima. A política jurídica e operacional para executar uma exclusão de conta ainda não está definida.

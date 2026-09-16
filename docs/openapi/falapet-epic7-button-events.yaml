@@ -1,0 +1,50 @@
+openapi: 3.1.0
+info: { title: FalaPet Epic 7 amendment, version: 1.0.0 }
+paths:
+  /api/v1/sync/button-events:
+    post:
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [events]
+              properties:
+                events: { type: array, minItems: 1, maxItems: 100, items: { $ref: '#/components/schemas/ButtonEventInput' } }
+      responses:
+        '200': { description: Ordered per-event ACCEPTED, ALREADY_ACCEPTED, or REJECTED result }
+        '400': { description: VALIDATION_ERROR for invalid, empty, or over-100 envelope }
+components:
+  securitySchemes: { bearerAuth: { type: http, scheme: bearer } }
+  schemas:
+    ButtonEventInput:
+      type: object
+      additionalProperties: false
+      required: [id, buttonId, esp32DeviceId, physicalButtonId, espSessionId, sequence, espUptimeMs, occurredAt, receivedAt, timeQuality, transport, purpose, trainingSessionId]
+      properties:
+        id: { type: string, format: uuid }
+        buttonId: { type: string, format: uuid }
+        esp32DeviceId: { type: string, format: uuid }
+        physicalButtonId: { type: string }
+        espSessionId: { type: string, format: uuid }
+        sequence: { type: integer, minimum: 0 }
+        espUptimeMs: { type: integer, minimum: 0 }
+        occurredAt: { type: string, format: date-time }
+        receivedAt: { type: string, format: date-time }
+        timeQuality: { type: string, enum: [ESTIMATED_FROM_MOBILE, RECEIVED_TIME_ONLY] }
+        transport: { type: string, enum: [BLE, WIFI] }
+        purpose: { type: string, enum: [BEHAVIORAL, TEST] }
+        trainingSessionId: { type: [string, 'null'], format: uuid }
+    EventResult:
+      type: object
+      required: [eventId, status]
+      properties:
+        eventId: { type: string, format: uuid }
+        status: { type: string, enum: [ACCEPTED, ALREADY_ACCEPTED, REJECTED] }
+        error: { type: object, properties: { code: { type: string, enum: [EVENT_ID_CONFLICT, RESOURCE_NOT_FOUND, TRAINING_SESSION_INVALID, VALIDATION_ERROR] }, message: { type: string } } }
+    Esp32Device: { type: object }
+    PhysicalButtonBinding: { type: object }
+    TrainingSession: { type: object }

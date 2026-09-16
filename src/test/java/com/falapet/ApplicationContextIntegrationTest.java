@@ -51,7 +51,7 @@ class ApplicationContextIntegrationTest extends PostgreSqlIntegrationTest {
 	void loadsContextAgainstPostgreSqlWithAppliedMigrations() throws Exception {
 		assertThat(applicationContext).isNotNull();
 		assertThat(dataSource.getConnection().getMetaData().getURL()).startsWith("jdbc:postgresql:");
-		assertThat(flyway.info().applied()).hasSize(9);
+		assertThat(flyway.info().applied()).hasSize(10);
 		assertThat(jdbcTemplate.queryForObject(
 			"select metadata_value from application_metadata where metadata_key = 'schema_baseline'",
 			String.class)).isEqualTo("1");

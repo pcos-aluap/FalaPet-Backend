@@ -187,7 +187,7 @@ class PetIntegrationTest extends PostgreSqlIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM pet WHERE id = ?", Integer.class,
                 UUID.fromString(inactiveId))).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM information_schema.tables WHERE table_name = 'button_event'",
-                Integer.class)).isZero();
+                Integer.class)).isEqualTo(1);
     }
 
     @Test
