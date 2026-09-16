@@ -51,7 +51,7 @@ class ApplicationContextIntegrationTest extends PostgreSqlIntegrationTest {
 	void loadsContextAgainstPostgreSqlWithAppliedMigrations() throws Exception {
 		assertThat(applicationContext).isNotNull();
 		assertThat(dataSource.getConnection().getMetaData().getURL()).startsWith("jdbc:postgresql:");
-		assertThat(flyway.info().applied()).hasSize(8);
+		assertThat(flyway.info().applied()).hasSize(9);
 		assertThat(jdbcTemplate.queryForObject(
 			"select metadata_value from application_metadata where metadata_key = 'schema_baseline'",
 			String.class)).isEqualTo("1");
@@ -74,11 +74,11 @@ class ApplicationContextIntegrationTest extends PostgreSqlIntegrationTest {
 	}
 
 	@Test
-	void doesNotExposeAPlaceholderForFutureApi() throws Exception {
+	void doesNotExposeAPlaceholderForReservedAudioApi() throws Exception {
 		MockMvcBuilders.webAppContextSetup(webApplicationContext)
 			.apply(springSecurity())
 			.build()
-			.perform(get("/api/v1/buttons").with(user("not-a-real-user")))
+			.perform(get("/api/v1/audio/capabilities").with(user("not-a-real-user")))
 			.andExpect(status().isNotFound());
 	}
 

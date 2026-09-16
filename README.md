@@ -180,6 +180,7 @@ As migrations são imutáveis e ficam em `src/main/resources/db/migration`:
 - `V6__create_user_deletion_request.sql`: registro técnico único `PENDING` da solicitação LGPD, vinculado ao usuário.
 - `V7__create_pet.sql`: Pets vinculados ao tutor, índice para cursor e marcador transacional de criação idempotente.
 - `V8__create_mobile_device.sql`: instalações Android por tutor, com preferência local versionada e padrão seguro desativado.
+- `V9__create_button.sql`: Buttons lógicos por tutor, com versão, desativação lógica e criação idempotente.
 
 O schema é criado exclusivamente pelo Flyway e validado pelo Hibernate (`ddl-auto=validate`). JDBC e serialização usam UTC.
 
@@ -200,6 +201,14 @@ O Épico 4B — Fotos de Pets está bloqueado/adiado. O contrato v1.1.0 ainda ex
 Essa preferência é apenas sincronizada: a decisão e a execução de playback ocorrem localmente no Tutor Mode, inclusive offline. O backend não armazena áudio, binário, URL de áudio, prazo, comando ou telemetria de playback. Áudios permanecem locais ao celular agora e poderão ser distribuídos para o cartão da Central física no futuro.
 
 As rotas de ESP32 não foram registradas. O contrato atual não define o schema de `Esp32Device`, a resposta da listagem, nem o protocolo de reautenticação/confirmação forte obrigatório para desvincular. Pareamento, criação/remoção de binding físico, credenciais e comandos BLE/RF/Wi-Fi continuam reservados até um contrato de segurança específico aprovado.
+
+## Botões lógicos e áudio local
+
+O Épico 6A implementa `POST /buttons`, `GET /buttons`, `GET /buttons/{buttonId}`, `PATCH /buttons/{buttonId}` e as rotas de desativação/reativação. Buttons pertencem ao tutor autenticado, têm UUID e versão próprios, não possuem `petId`, e usam cursor opaco com `status=ACTIVE|INACTIVE|ALL`. Criação exige `Idempotency-Key`; edição exige `If-Match`; conflitos retornam `VERSION_CONFLICT` com o Button atual. Desativação é lógica e não remove a identidade nem altera histórico futuro ou existente.
+
+Button é lógico e independente de áudio e hardware. `activeAudio` e `activeBinding` são sempre `null` neste estágio. `GET /buttons/{buttonId}/binding` permanece ausente: o contrato não define seu schema nem a semântica de binding ausente. Criar, trocar ou remover binding físico continua reservado.
+
+O Épico 6B — áudio no backend — está adiado/bloqueado pela decisão atual do produto, apesar do contrato ainda mencionar upload e object storage. Gravação, validação, hash/formato e substituição atômica ocorrem localmente no Tutor Mode; o mobile usa arquivo temporário e troca segura antes de substituir o ativo. O backend não armazena arquivo, hash, URI, duração, URL, estado operacional ou telemetria de playback. A futura transferência ao cartão de memória da Central exige contrato próprio.
 
 ## Fora do escopo deste incremento
 

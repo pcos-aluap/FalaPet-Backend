@@ -1,0 +1,15 @@
+{
+  "data": {
+    "button": {
+      "id": "5a242aa8-b340-4f68-b8f1-48f8381a7ea6",
+      "name": "Comida",
+      "description": null,
+      "status": "ACTIVE",
+      "activeAudio": null,
+      "activeBinding": null,
+      "createdAt": "2026-09-13T18:00:00Z",
+      "updatedAt": "2026-09-13T18:00:00Z",
+      "version": 1
+    }
+  }
+}
